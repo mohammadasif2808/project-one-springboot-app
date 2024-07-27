@@ -33,4 +33,4 @@ jobs:
       - name: Delete old container
         run: docker rm -f projectone.example-container
       - name: Run docker container
-        run: docker run -d -p 8080:8080 --name projectone.example-container mohammadasif2808/projectone.example
+        run: docker run -d -p 80:8080 --name projectone.example-container mohammadasif2808/projectone.example
