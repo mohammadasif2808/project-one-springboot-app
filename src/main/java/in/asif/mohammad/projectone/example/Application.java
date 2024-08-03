@@ -14,13 +14,3 @@ public class Application {
 	}
 
 }
-
-@RestController
-@RequestMapping("/api")
-class HelloController {
-
-	@GetMapping("/hello")
-	public String sayHello() {
-		return "Hello, World! Welcome to my first spring boot mircroservice.";
-	}
-}
