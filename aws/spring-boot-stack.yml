@@ -1,0 +1,70 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Deploy a Spring Boot app on AWS EC2 with IAM Role for S3 access
+
+Resources:
+  MyEC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-05b10e08d247fb927  # Update with latest Amazon Linux AMI
+      InstanceType: t2.micro
+      KeyName: my-key-pair  # Replace with your EC2 key pair
+      SecurityGroups:
+        - Ref: MySecurityGroup
+      IamInstanceProfile: !Ref MyInstanceProfile  # Attach IAM Role
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          yum update -y
+          yum install -y java-17-amazon-corretto
+          aws s3 cp s3://springboot-jar-bucket-02-25/latest-app.jar /home/ec2-user/app.jar
+          nohup java -jar /home/ec2-user/app.jar > /home/ec2-user/app.log 2>&1 &
+
+  MySecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow HTTP and SSH access
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: 0.0.0.0/0
+
+  # IAM Role for EC2 to Access S3
+  MyInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: S3ReadAccessPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub "arn:aws:s3:::springboot-jar-bucket-02-25"
+                  - !Sub "arn:aws:s3:::springboot-jar-bucket-02-25/*"
+
+  # IAM Instance Profile to attach Role to EC2
+  MyInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref MyInstanceRole
+
+Outputs:
+  WebsiteURL:
+    Description: Application URL
+    Value: !Sub "http://${MyEC2Instance.PublicIp}:8080/api/hello"
