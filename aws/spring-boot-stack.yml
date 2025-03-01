@@ -1,23 +1,52 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Deploy a Spring Boot app on AWS EC2 with IAM Role for S3 access
 
+Parameters:
+  DeploymentVersion:
+    Type: String
+    Default: "1"  # Change this value when deploying
+
 Resources:
   MyEC2Instance:
     Type: AWS::EC2::Instance
     Properties:
       ImageId: ami-05b10e08d247fb927  # Update with latest Amazon Linux AMI
       InstanceType: t2.micro
-      KeyName: my-key-pair  # Replace with your EC2 key pair
+      KeyName: new-key-02-25  # Replace with your EC2 key pair
       SecurityGroups:
         - Ref: MySecurityGroup
       IamInstanceProfile: !Ref MyInstanceProfile  # Attach IAM Role
+#      BlockDeviceMappings:
+#        - DeviceName: /dev/xvda
+#          Ebs:
+#            DeleteOnTermination: true
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
+          echo "Deployment Version: ${DeploymentVersion}" > /home/ec2-user/deployment_info.txt # this value triggers EC2 replacement
           yum update -y
           yum install -y java-17-amazon-corretto
-          aws s3 cp s3://springboot-jar-bucket-02-25/latest-app.jar /home/ec2-user/app.jar
-          nohup java -jar /home/ec2-user/app.jar > /home/ec2-user/app.log 2>&1 &
+          
+          # Create a systemd service to run UserData on every reboot
+          cat <<EOF | sudo tee /etc/systemd/system/userdata-reboot.service
+          [Unit]
+          Description=Run UserData on Every Reboot
+          After=network.target
+    
+          [Service]
+          Type=oneshot
+          ExecStart=/bin/bash -c 'aws s3 cp s3://springboot-jar-bucket-02-25/latest-app.jar /home/ec2-user/app.jar && nohup java -jar /home/ec2-user/app.jar > /home/ec2-user/app.log 2>&1 &'
+          RemainAfterExit=yes
+    
+          [Install]
+          WantedBy=multi-user.target
+          EOF
+    
+          # Enable and start the service
+          sudo systemctl daemon-reload
+          sudo systemctl enable userdata-reboot.service
+          sudo systemctl start userdata-reboot.service
+
 
   MySecurityGroup:
     Type: AWS::EC2::SecurityGroup
